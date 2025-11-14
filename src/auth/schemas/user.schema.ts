@@ -14,7 +14,7 @@ export class User extends Document {
     @Prop({ required: true })
     password: string;
 
-    @Prop({ default: false })//default false
+    @Prop({ default: true })//default false
     isVerfied: Boolean;
 
     //@Prop({ default: false })

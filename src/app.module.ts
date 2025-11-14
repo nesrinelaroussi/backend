@@ -10,6 +10,9 @@ import { JwtModule } from '@nestjs/jwt';
 import { HttpModule } from '@nestjs/axios';
 import config from './config/config';
 import { AuthModule } from './auth/auth.module';
+import { AiArtService } from './ai-art/ai-art.service';
+import { AiArtController } from './ai-art/ai-art.controller';
+import { ImageGenerationService } from './ai-art/ImageGeneration.service';
 
 
 
@@ -40,7 +43,7 @@ import { AuthModule } from './auth/auth.module';
 
   ],
 
-  controllers: [AppController, AuthController],
-  providers: [AppService, AuthService, MailService],
+  controllers: [AppController, AuthController, AiArtController],
+  providers: [AppService, AuthService, MailService, AiArtService,ImageGenerationService],
 })
 export class AppModule { }

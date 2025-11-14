@@ -37,35 +37,30 @@ export class AuthService {
     ) { }
 
     async signup(signupData: SignupDto) {
-        const { email, password, name } = signupData;
+    const { email, password, name } = signupData;
 
-        const emailInUse = await this.userModel.findOne({ email });
-        if (emailInUse) {
-            throw new BadRequestException('Email already in use');
-        }
-
-        // Hash password
-        const hashedPassword = await bcrypt.hash(password, 10);
-
-        // Create user document and save in MongoDB
-        const createdUser = await this.userModel.create({
-            name,
-            email,
-            password: hashedPassword,
-        });
-
-
-        const secret = process.env.JWT_SECRET;
-        const confirmationToken = jwt.sign({ email }, secret, { expiresIn: '1h' });
-
-        this.mailService.sendConfirmEmail(email, confirmationToken);
-
-        // Return the response with statusCode and user information
-        return {
-            data: createdUser,
-            message: "Registration successful! A confirmation email has been sent. Please check your inbox."
-        };
+    const emailInUse = await this.userModel.findOne({ email });
+    if (emailInUse) {
+        throw new BadRequestException('Email already in use');
     }
+
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // ✅ Create user and mark them as verified immediately
+    const createdUser = await this.userModel.create({
+        name,
+        email,
+        password: hashedPassword,
+        isVerfied: true, // mark verified automatically
+    });
+
+    // ✅ Simplified return message
+    return {
+        data: createdUser,
+        message: "Registration successful!",
+    };
+}
 
 
     async confirmEmail(token: string) {
@@ -99,13 +94,11 @@ export class AuthService {
         if (!passwordMatch) {
             throw new UnauthorizedException('Wrong credentials this erorr ids from our');
         }
-        if (!user.isVerfied) {
-            throw new UnauthorizedException('You most confirm your email');
-        }
+       
 
 
         // Generate JWT tokens
-        const tokens = await this.generateUserTokens(user._id);
+const tokens = await this.generateUserTokens(user._id.toString(), credentials.rememberMe);
 
 
 
@@ -137,7 +130,7 @@ export class AuthService {
         }
 
         // Generate JWT tokens
-        const tokens = await this.generateUserTokens(user._id);
+const tokens = await this.generateUserTokens(user._id.toString());
 
         // Return response with statusCode and user information
         return {
@@ -241,43 +234,53 @@ export class AuthService {
     }
 
 
+async refreshTokens(refreshToken: string) {
+  // Check if the refresh token exists and is still valid
+  const token = await this.RefreshTokenModel.findOne({
+    token: refreshToken,
+    expiryDate: { $gte: new Date() },
+  });
 
-    async refreshTokens(refreshToken: string) {
-        const token = await this.RefreshTokenModel.findOne({
-            token: refreshToken,
-            expiryDate: { $gte: new Date() },
-        });
+  if (!token) {
+    throw new UnauthorizedException('Refresh Token is invalid or expired');
+  }
 
-        if (!token) {
-            throw new UnauthorizedException('Refresh Token is invalid');
-        }
-        return this.generateUserTokens(token.userId);
-    }
+  // Convert userId to string before passing it
+  const userId = token.userId.toString();
 
-    async generateUserTokens(userId) {
-const accessToken = this.jwtService.sign({ sub: userId }, { expiresIn: '10h' });
-        const refreshToken = uuidv4();
+  // Generate new access + refresh tokens
+  return this.generateUserTokens(userId, true); // <-- true = assume rememberMe for refresh flow
+}
 
-        await this.storeRefreshToken(refreshToken, userId);
-        return {
-            accessToken,
-            refreshToken,
-        };
-    }
 
-    async storeRefreshToken(token: string, userId: string) {
-        // Calculate expiry date 3 days from now
-        const expiryDate = new Date();
-        expiryDate.setDate(expiryDate.getDate() + 3);
+  async generateUserTokens(userId: string, rememberMe = false) {
+  // If user checked "remember me", extend the token lifespan
+  const accessTokenExpiry = rememberMe ? '7d' : '10h';
+  const refreshTokenExpiryDays = rememberMe ? 30 : 3;
 
-        await this.RefreshTokenModel.updateOne(
-            { userId },
-            { $set: { expiryDate, token } },
-            {
-                upsert: true,
-            },
-        );
-    }
+  // Generate the tokens
+  const accessToken = this.jwtService.sign({ sub: userId }, { expiresIn: accessTokenExpiry });
+  const refreshToken = uuidv4();
+
+  // Store refresh token with custom expiry
+  await this.storeRefreshToken(refreshToken, userId, refreshTokenExpiryDays);
+
+  return {
+    accessToken,
+    refreshToken,
+  };
+}
+async storeRefreshToken(token: string, userId: string, daysValid = 3) {
+    const expiryDate = new Date();
+    expiryDate.setDate(expiryDate.getDate() + daysValid);
+
+    await this.RefreshTokenModel.updateOne(
+        { userId },
+        { $set: { expiryDate, token } },
+        { upsert: true },
+    );
+}
+
 
 
 
