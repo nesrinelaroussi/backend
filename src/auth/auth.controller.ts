@@ -89,6 +89,11 @@ export class AuthController {
         return result; // Success message after password reset
 
     }
+@Post("logout")
+async logout(@Body() body: { refreshToken: string }) {
+  await this.authService.invalidateRefreshToken(body.refreshToken);
+  return { message: "Logged out successfully" };
+}
 
 
 }

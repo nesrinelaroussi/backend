@@ -383,5 +383,8 @@ async storeRefreshToken(token: string, userId: string, daysValid = 3) {
             throw new InternalServerErrorException('Failed to fetch users with the specified role');
         }
     }
+async invalidateRefreshToken(token: string) {
+  await this.RefreshTokenModel.deleteOne({ token });
+}
 
 }
